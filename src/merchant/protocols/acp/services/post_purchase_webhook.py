@@ -19,6 +19,8 @@ import logging
 
 from src.merchant.protocols.acp.services.webhook_delivery import (
     send_shipping_update_webhook,
+    send_order_created_webhook,
+    send_order_updated_webhook,
 )
 from src.merchant.services.post_purchase import (
     OrderItem,
@@ -50,6 +52,25 @@ async def trigger_post_purchase_flow(
     except ValueError:
         lang = SupportedLanguage.ENGLISH
         logger.warning("Invalid language '%s', defaulting to English", language)
+
+    # Send order updated webhook to notify client that order is confirmed
+    try:
+        logger.info("Sending order_updated webhook for order %s", order_id)
+        from src.merchant.protocols.acp.services.webhook_delivery import (
+            send_order_updated_webhook,
+        )
+        await send_order_updated_webhook(
+            checkout_session_id=checkout_session_id,
+            order_id=order_id,
+            customer_name=customer_name,
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error(
+            "Failed to send order_updated webhook for order %s: %s",
+            order_id,
+            str(exc),
+        )
+        # Continue with shipping update even if order update fails
 
     request: ShippingMessageRequest = {
         "brand_persona": {

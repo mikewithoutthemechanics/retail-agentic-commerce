@@ -124,8 +124,9 @@ def build_business_profile(request_base_url: str | None = None) -> UCPBusinessPr
                     UCPService(
                         version=settings.ucp_version,
                         spec="https://ucp.dev/specification/overview",
-                        transport="a2a",
-                        endpoint=agent_card_url,
+                        transport="rest",
+                        endpoint=f"{base_url.rstrip('/')}/checkout-sessions",
+                        schema_url="https://ucp.dev/services/shopping/rest.openapi.json",
                     ),
                 ]
             },
@@ -157,7 +158,14 @@ def build_business_profile(request_base_url: str | None = None) -> UCPBusinessPr
                     UCPPaymentHandler(
                         id="processor_tokenizer",
                         version=settings.ucp_version,
-                        config=None,
+                        spec="https://ucp.dev/specification/checkout",
+                        schema_url="https://ucp.dev/schemas/shopping/payment_handler_config.json",
+                        config={
+                            "merchant_id": "example_merchant",
+                            "allowed_card_types": ["visa", "mastercard", "amex"],
+                            "supports_tokenization": True,
+                            "test_mode": settings.debug,
+                        }
                     )
                 ]
             },
@@ -472,13 +480,22 @@ def _convert_messages(
             continue
 
         if isinstance(message, MessageWarning):
+            # Map specific warning codes to appropriate severities
+            # "discount_code_already_applied" is informational - user doesn't need to take action
+            # "discount_code_invalid" and "discount_code_combination_disallowed" require user input
+            severity = UCPMessageSeverity.REQUIRES_BUYER_INPUT
+            if message.code == "discount_code_already_applied":
+                severity = UCPMessageSeverity.REQUIRES_BUYER_REVIEW
+            elif message.code == "discount_code_invalid" or message.code == "discount_code_combination_disallowed":
+                severity = UCPMessageSeverity.REQUIRES_BUYER_INPUT
+
             converted.append(
                 UCPMessage(
                     type=UCPMessageType.WARNING,
                     code=message.code,
                     path=message.param,
                     content=message.content,
-                    severity=UCPMessageSeverity.REQUIRES_BUYER_REVIEW,
+                    severity=severity,
                 )
             )
             continue

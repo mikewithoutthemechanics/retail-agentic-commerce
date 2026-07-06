@@ -193,19 +193,43 @@ functions:
       as JSON. If a block starts with "ERROR:" or is not parseable JSON, treat
       that branch as missing and continue with the available branch data.
       If user_understanding_agent is missing, set user_intent to
-      "Shopper intent unavailable." If nli_agent is missing, return zero
-      candidates with an empty filtered_candidates list.
+      "Shopper intent unavailable." and treat complementary_categories as empty.
+      If nli_agent is missing, return zero candidates with an empty
+      filtered_candidates list.
 
       TASK:
       1) Copy user_intent from user_understanding_agent.user_intent.
-      2) Build primary_candidates where alignment_score > 0.7 and product_id is not in cart_product_ids.
-      3) Set after_alignment_filter = number of primary_candidates.
-      4) If primary_candidates has fewer than 3 items, backfill with highest-scoring remaining non-cart candidates until reaching 3 (or exhaust candidates).
-      5) Enforce diversity when possible, but do not reduce below 3 when 3+ non-cart candidates exist.
-      6) Return at most 4 filtered candidates sorted by alignment_score descending.
-      7) Keep only: product_id, product_name, category, alignment_score.
+      2) Derive cart_categories from cart_items[*].category (unique).
+      3) Derive complementary_categories from user_understanding_agent
+         (defaults to [] when missing).
+      4) Build primary_candidates from nli_agent.scored_candidates where
+         alignment_score > 0.7 and product_id is not in cart_product_ids.
+      5) If primary_candidates has fewer than 3 items, backfill with
+         highest-scoring remaining non-cart candidates until reaching 3
+         (or exhaust candidates).
+      6) Score every candidate in filtered_candidates on cross_sell_fit using
+         the rule below, then keep only: product_id, product_name, category,
+         alignment_score, cross_sell_fit.
 
-      Tie-break rule when alignment_score ties: preserve original candidate order.
+         cross_sell_fit rule (deterministic, applied per candidate.category):
+         - HIGH (0.8-1.0): category appears in complementary_categories
+                           AND is not in cart_categories.
+         - MEDIUM (0.4-0.7): category appears in neither complementary_categories
+                             nor cart_categories (genre-adjacent, neutral fit).
+         - LOW (0.0-0.3): category appears in cart_categories
+                          (upsell/similar, not a true cross-sell).
+         - When complementary_categories is empty, use MEDIUM as the default
+           and add 0.1 to HIGH and LOW caps (so the range still discriminates
+           between in-cart and out-of-cart categories).
+
+      7) Set after_alignment_filter = number of primary_candidates.
+      8) Keep at most 4 filtered_candidates. Sort by:
+         (cross_sell_fit DESC, alignment_score DESC).
+         Tie-break: preserve original candidate order.
+
+      Diversity rule: prefer distinct categories when possible, but never
+      reduce below 3 when 3+ non-cart candidates exist.
+
       Output must be compact JSON (no markdown, no extra keys, no pretty-printing).
 
       Return ONLY valid JSON (no markdown, no prose):
@@ -219,7 +243,8 @@ functions:
             "product_id": "<exact product_id>",
             "product_name": "<exact product_name>",
             "category": "<item category>",
-            "alignment_score": 0.0
+            "alignment_score": 0.0,
+            "cross_sell_fit": 0.0
           }
         ]
       }
@@ -242,18 +267,25 @@ functions:
       - user_intent
       - candidates_received
       - after_alignment_filter
-      - filtered_candidates
+      - filtered_candidates[*].{product_id,product_name,category,alignment_score,cross_sell_fit}
 
       TASK:
       - Rank up to 3 items from filtered_candidates.
       - If filtered_candidates has 3 or more items, return exactly 3 recommendations.
       - If fewer than 3 items exist, return all available items.
-      - Prioritize: cross-sell fit > alignment_score > diversity.
-      - Diversity rule: avoid duplicate categories when there are enough alternatives.
+      - Primary sort key: cross_sell_fit DESC.
+      - Secondary sort key: alignment_score DESC.
+      - Diversity rule (applied after sorting): when adjacent items share the
+        same category AND a later item has a different category, swap so that
+        the later item is promoted over its same-category predecessor unless
+        that predecessor's cross_sell_fit exceeds the later item's cross_sell_fit
+        by more than 0.2. Never reduce result count below 3 when 3+ items exist.
       - Use exact product_id and product_name from filtered_candidates.
-      - Reasoning: one short sentence per item, maximum 12 words.
+      - Reasoning: one short sentence per item, maximum 12 words, that may
+        reference cross_sell_fit or alignment_score when natural.
 
-      Tie-break rule when candidates are equivalent: preserve input order.
+      Tie-break rule when candidates are equivalent on both sort keys:
+      preserve input order.
       Output must be compact JSON (no markdown, no extra keys, no pretty-printing).
 
       Return ONLY valid JSON (no markdown, no prose):

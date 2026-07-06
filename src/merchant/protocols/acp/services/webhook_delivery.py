@@ -169,3 +169,23 @@ async def send_order_created_webhook(
         },
     }
     return await send_webhook(event)
+
+
+async def send_order_updated_webhook(
+    checkout_session_id: str,
+    order_id: str,
+    customer_name: str,
+) -> bool:
+    """Send an ACP order updated webhook event."""
+    event: WebhookEvent = {
+        "type": "order_updated",
+        "data": {
+            "type": "order",
+            "order_id": order_id,
+            "checkout_session_id": checkout_session_id,
+            "customer_name": customer_name,
+            "status": "confirmed",
+            "refunds": [],
+        },
+    }
+    return await send_webhook(event)

@@ -32,6 +32,8 @@ def verify_api_key(
         HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
     ] = None,
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    api_version: Annotated[str | None, Header(alias="API-Version")] = None,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> str:
     """Verify API key from Authorization header or X-API-Key header.
 
@@ -43,11 +45,14 @@ def verify_api_key(
         settings: Application settings containing the valid API key.
         bearer_credentials: Optional Bearer token from Authorization header.
         x_api_key: Optional API key from X-API-Key header.
+        api_version: Optional API version from API-Version header.
+        idempotency_key: Optional idempotency key from Idempotency-Key header.
 
     Returns:
         The validated API key.
 
     Raises:
+        HTTPException: 400 if API version is not supported or missing for certain operations.
         HTTPException: 401 if no API key provided, 403 if invalid.
     """
     # Extract API key from either source
@@ -91,5 +96,30 @@ def verify_api_key(
                 "message": "Invalid API key.",
             },
         )
+
+    # Validate API-Version header (required for all requests)
+    # Currently supported version: 2026-01-23 (matching UCP version)
+    supported_versions = ["2026-01-23"]
+    if api_version is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "type": "invalid_request",
+                "code": "missing_api_version",
+                "message": "API-Version header is required.",
+            },
+        )
+    if api_version not in supported_versions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "type": "invalid_request",
+                "code": "unsupported_api_version",
+                "message": f"API version '{api_version}' is not supported. Supported versions: {', '.join(supported_versions)}",
+            },
+        )
+
+    # Note: Idempotency-Key validation is handled by ACPHeadersMiddleware
+    # for POST, PUT, and DELETE requests to ensure proper idempotency handling
 
     return api_key

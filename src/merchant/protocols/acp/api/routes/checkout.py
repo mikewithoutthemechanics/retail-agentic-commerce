@@ -39,6 +39,10 @@ from src.merchant.protocols.acp.api.schemas.checkout import (
     ErrorTypeEnum,
     UpdateCheckoutRequest,
 )
+from src.merchant.domain.checkout.utils import (
+    extract_customer_name_from_acp_request,
+    extract_items_from_line_items,
+)
 from src.merchant.protocols.acp.services.post_purchase_webhook import (
     trigger_post_purchase_flow,
 )
@@ -114,6 +118,7 @@ def _handle_service_error(error: Exception) -> HTTPException:
 )
 async def create_checkout(
     request: CreateCheckoutRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_session),
 ) -> CheckoutSessionResponse:
     """Create a new checkout session.
@@ -122,6 +127,7 @@ async def create_checkout(
 
     Args:
         request: CreateCheckoutRequest with items and optional buyer/address.
+        background_tasks: FastAPI background tasks for webhook delivery.
         db: Database session from dependency injection.
 
     Returns:
@@ -131,7 +137,45 @@ async def create_checkout(
         HTTPException: 400 if product not found.
     """
     try:
-        return await create_checkout_session(db, request)
+        response = await create_checkout_session(db, request)
+
+        # Trigger order created webhook (ACP architecture)
+        # This runs as a background task so it doesn't block the checkout response
+        if response.order is not None:
+            # Extract customer name from multiple sources (in priority order):
+            # 1. buyer.first_name from request
+            # 2. buyer.first_name from session response
+            # 3. "Customer" (default fallback)
+            customer_name = "Customer"
+            if request.buyer and request.buyer.first_name:
+                customer_name = request.buyer.first_name
+            elif response.buyer and response.buyer.first_name:
+                customer_name = response.buyer.first_name
+
+            items = []
+            for line_item in response.line_items or []:
+                item_name = line_item.name or line_item.item.id
+                items.append({"name": item_name, "quantity": line_item.item.quantity})
+
+            if not items:
+                items = [{"name": "your order", "quantity": 1}]
+
+            # Queue the order created webhook as a background task
+            # Use the preferred_language from the request (defaults to 'en')
+            from src.merchant.protocols.acp.services.webhook_delivery import (
+                send_order_created_webhook,
+            )
+
+            background_tasks.add_task(
+                send_order_created_webhook,
+                checkout_session_id=response.id,
+                order_id=response.order.id,
+                customer_name=customer_name,
+                items=items,
+                language=request.preferred_language.value if request.preferred_language else "en",
+            )
+
+        return response
     except (
         ProductNotFoundError,
         SessionNotFoundError,
@@ -263,30 +307,9 @@ def complete_checkout(
             # 1. billing_address.name from payment_data (user's actual input)
             # 2. buyer.first_name from request
             # 3. buyer.first_name from session response
-            customer_name = "Customer"
-            billing_name = None
-            if (
-                request.payment_data
-                and request.payment_data.billing_address
-                and request.payment_data.billing_address.name
-            ):
-                # Extract first name from billing address (e.g., "John Doe" -> "John")
-                billing_name = request.payment_data.billing_address.name.strip()
-                name_parts = billing_name.split()
-                if name_parts:
-                    customer_name = name_parts[0]
-            elif request.buyer and request.buyer.first_name:
-                customer_name = request.buyer.first_name
-            elif response.buyer and response.buyer.first_name:
-                customer_name = response.buyer.first_name
+            customer_name = extract_customer_name_from_acp_request(request, response)
 
-            items: list[OrderItem] = []
-            for line_item in response.line_items or []:
-                item_name = line_item.name or line_item.item.id
-                items.append({"name": item_name, "quantity": line_item.item.quantity})
-
-            if not items:
-                items = [{"name": "your order", "quantity": 1}]
+            items = extract_items_from_line_items(response.line_items)
 
             # Queue the post-purchase flow as a background task
             # Use the preferred_language from the request (defaults to 'en')

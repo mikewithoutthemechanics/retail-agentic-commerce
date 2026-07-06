@@ -40,6 +40,16 @@ def test_recommendation_workflow_uses_llm_first_parallel_arag() -> None:
     assert "Evaluate only the first 10 candidates by input order." in config_text
     assert "Text from NAT's built-in parallel_executor." in config_text
 
+    # Cross-sell fit contract: CSA computes and emits the field; IRA consumes it
+    assert "cross_sell_fit" in config_text
+    assert "complementary_categories" in config_text
+    assert "cross_sell_fit rule" in config_text
+    assert "Primary sort key: cross_sell_fit DESC." in config_text
+    assert (
+        "filtered_candidates[*].{product_id,product_name,category,alignment_score,cross_sell_fit}"
+        in config_text
+    )
+
     for legacy_component in (
         "_type: nli_scorer",
         "_type: context_synthesizer",

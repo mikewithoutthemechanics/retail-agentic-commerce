@@ -138,6 +138,8 @@ class UCPCheckoutStatus(StrEnum):
     READY_FOR_COMPLETE = "ready_for_complete"
     COMPLETED = "completed"
     CANCELED = "canceled"
+    REQUIRES_ESCALATION = "requires_escalation"
+    COMPLETE_IN_PROGRESS = "complete_in_progress"
 
 
 class UCPTotalType(StrEnum):
@@ -376,6 +378,41 @@ class UCPCheckoutResponse(BaseModel):
     totals: list[UCPTotal]
     discounts: UCPDiscounts | None = None
     messages: Annotated[list[UCPMessage], Field(default_factory=list)]
+
+
+# =============================================================================
+# UCP Error Response Schemas
+# =============================================================================
+
+
+class UCPErrorTypeEnum(StrEnum):
+    """UCP error response type values."""
+
+    INVALID_REQUEST = "invalid_request"
+    NOT_FOUND = "not_found"
+    METHOD_NOT_ALLOWED = "method_not_allowed"
+    INTERNAL_ERROR = "internal_error"
+
+
+class UCPErrorResponseCodeEnum(StrEnum):
+    """UCP error response code values."""
+
+    SESSION_NOT_FOUND = "session_not_found"
+    PRODUCT_NOT_FOUND = "product_not_found"
+    INVALID_STATUS_TRANSITION = "invalid_status_transition"
+    MISSING_UCP_AGENT_HEADER = "missing_ucp_agent_header"
+    INVALID_UCP_AGENT_HEADER = "invalid_ucp_agent_header"
+    UNABLE_TO_FETCH_PLATFORM_PROFILE = "unable_to_fetch_platform_profile"
+    UCP_NEGOTIATION_FAILED = "ucp_negotiation_failed"
+    INTERNAL_ERROR = "internal_error"
+
+
+class UCPErrorResponse(BaseModel):
+    """UCP error response schema."""
+
+    type: UCPErrorTypeEnum = Field(..., description="Error type")
+    code: UCPErrorResponseCodeEnum = Field(..., description="Error code")
+    message: str = Field(..., description="Human-readable error message")
 
 
 # =============================================================================

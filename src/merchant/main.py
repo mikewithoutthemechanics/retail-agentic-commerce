@@ -35,6 +35,7 @@ from src.merchant.config import get_settings
 from src.merchant.db import init_and_seed_db
 from src.merchant.middleware import ACPHeadersMiddleware, RequestLoggingMiddleware
 from src.merchant.protocols.acp.api.routes.checkout import router as checkout_router
+from src.merchant.protocols.ucp.api.routes.checkout import router as ucp_checkout_router
 from src.merchant.protocols.ucp.api.routes.discovery import (
     router as ucp_discovery_router,
 )
@@ -106,6 +107,7 @@ app.include_router(checkout_router)
 app.include_router(metrics_router)
 app.include_router(products_router)
 app.include_router(ucp_discovery_router)
+app.include_router(ucp_checkout_router)
 
 # ---------------------------------------------------------------------------
 # UCP A2A: SDK transport stack
