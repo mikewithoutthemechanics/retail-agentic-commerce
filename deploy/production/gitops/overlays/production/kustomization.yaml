@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: acp
+namePrefix: prod-
+
+resources:
+  - ../../base
+
+# Production: HA replicas and pinned release tag (set by CI on release).
+replicas:
+  - name: merchant
+    count: 3
+  - name: psp
+    count: 3
+  - name: apps-sdk
+    count: 2
+  - name: ui
+    count: 3
+
+images:
+  - name: ghcr.io/mikewithoutthemechanics/retail-agentic-commerce/merchant
+    newTag: production
+  - name: ghcr.io/mikewithoutthemechanics/retail-agentic-commerce/psp
+    newTag: production
+  - name: ghcr.io/mikewithoutthemechanics/retail-agentic-commerce/apps-sdk
+    newTag: production
+  - name: ghcr.io/mikewithoutthemechanics/retail-agentic-commerce/ui
+    newTag: production

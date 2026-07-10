@@ -1,0 +1,45 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: acp-ingress
+  namespace: acp
+  labels:
+    app.kubernetes.io/part-of: agentic-commerce
+  annotations:
+    # Terminate TLS at the ingress; internal traffic is described in ../../mtls.
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: acp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ui
+                port:
+                  number: 3000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: merchant
+                port:
+                  number: 8000
+          - path: /psp
+            pathType: Prefix
+            backend:
+              service:
+                name: psp
+                port:
+                  number: 8001
+          - path: /apps-sdk
+            pathType: Prefix
+            backend:
+              service:
+                name: apps-sdk
+                port:
+                  number: 2091
