@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     post_purchase_agent_url: str = "http://localhost:8003"
     post_purchase_agent_timeout: float = 15.0  # seconds
 
+    # Milvus Configuration
+    milvus_uri: str = "http://localhost:19530"
+
+    # Graph Recommendation Configuration
+    graph_recommendation_top_k: int = 10
+    graph_recommendation_min_similarity: float = 0.0
+    graph_recommendation_timeout: float = 10.0
+
 
 @lru_cache
 def get_settings() -> Settings:

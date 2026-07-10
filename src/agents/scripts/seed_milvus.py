@@ -64,11 +64,13 @@ try:
     # Try Docker path first
     sys.path.insert(0, "/app")
     from src.data.product_catalog import PRODUCTS
+    from src.data.product_graph import LightGCNConfig, train_lightgcn
 except ImportError:
     # Fall back to local development path
     project_root = Path(__file__).parent.parent.parent.parent
     sys.path.insert(0, str(project_root))
     from src.data.product_catalog import PRODUCTS
+    from src.data.product_graph import LightGCNConfig, train_lightgcn
 
 # Configuration from environment
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
@@ -96,6 +98,12 @@ if legacy_embed_url:
     EMBED_API_URL = legacy_embed_url
 else:
     EMBED_API_URL = f"{NIM_EMBED_BASE_URL}/embeddings"
+
+# Graph embedding configuration
+GRAPH_COLLECTION_NAME = "product_catalog_graph"
+DEFAULT_GRAPH_EMBED_DIM = 32
+GRAPH_EMBED_DIM = int(os.environ.get("GRAPH_EMBED_DIM", DEFAULT_GRAPH_EMBED_DIM))
+GRAPH_NUM_LAYERS = int(os.environ.get("GRAPH_NUM_LAYERS", "2"))
 
 # Retry configuration
 MAX_RETRIES = 30  # Max attempts to connect to Milvus
@@ -385,6 +393,114 @@ def verify_collection(collection: Any):
     return True
 
 
+def create_graph_collection() -> Any:
+    """Create the product_catalog_graph collection in Milvus."""
+    from pymilvus import (
+        Collection,
+        CollectionSchema,
+        DataType,
+        FieldSchema,
+        utility,
+    )
+
+    if utility.has_collection(GRAPH_COLLECTION_NAME):
+        print(f"\n2b. Dropping existing graph collection '{GRAPH_COLLECTION_NAME}'...")
+        utility.drop_collection(GRAPH_COLLECTION_NAME)
+        print("  Graph collection dropped")
+    else:
+        print(f"\n2b. Graph collection '{GRAPH_COLLECTION_NAME}' does not exist, will create new")
+
+    print(f"\n3b. Creating graph collection '{GRAPH_COLLECTION_NAME}'...")
+    fields = [
+        FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=100),
+        FieldSchema(name="sku", dtype=DataType.VARCHAR, max_length=50),
+        FieldSchema(name="name", dtype=DataType.VARCHAR, max_length=200),
+        FieldSchema(name="category", dtype=DataType.VARCHAR, max_length=100),
+        FieldSchema(name="subcategory", dtype=DataType.VARCHAR, max_length=100),
+        FieldSchema(name="price_cents", dtype=DataType.INT64),
+        FieldSchema(name="stock_count", dtype=DataType.INT64),
+        FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=2000),
+        FieldSchema(name="attributes_json", dtype=DataType.VARCHAR, max_length=1000),
+        FieldSchema(name="graph_vector", dtype=DataType.FLOAT_VECTOR, dim=GRAPH_EMBED_DIM * GRAPH_NUM_LAYERS),
+    ]
+
+    schema = CollectionSchema(
+        fields=fields,
+        description="Product graph embeddings from LightGCN",
+    )
+
+    collection = Collection(name=GRAPH_COLLECTION_NAME, schema=schema)
+    print(f"  Graph collection created with {len(fields)} fields")
+
+    print("\n4b. Creating graph vector index...")
+    index_params = {
+        "metric_type": "L2",
+        "index_type": "IVF_FLAT",
+        "params": {"nlist": 16},
+    }
+    collection.create_index(field_name="graph_vector", index_params=index_params)
+    print("  Graph vector index created (IVF_FLAT, L2)")
+
+    return collection
+
+
+def seed_graph_embeddings(collection: Any) -> int:
+    """Train LightGCN on the product graph and insert graph embeddings."""
+    print("\n5b. Training LightGCN on product graph...")
+    config = LightGCNConfig(
+        embedding_dim=GRAPH_EMBED_DIM,
+        num_layers=GRAPH_NUM_LAYERS,
+    )
+    result = train_lightgcn(PRODUCTS, config)
+    graph_embeddings = result.embeddings
+    print(f"  Trained LightGCN embeddings: shape=({len(graph_embeddings)}, {len(graph_embeddings[0])})")
+
+    print("\n6b. Inserting graph embeddings into Milvus...")
+    data = [
+        [p["id"] for p in PRODUCTS],
+        [p["sku"] for p in PRODUCTS],
+        [p["name"] for p in PRODUCTS],
+        [p["category"] for p in PRODUCTS],
+        [p["subcategory"] for p in PRODUCTS],
+        [p["price_cents"] for p in PRODUCTS],
+        [p["stock_count"] for p in PRODUCTS],
+        [p["description"] for p in PRODUCTS],
+        [json.dumps(p["attributes"]) for p in PRODUCTS],
+        graph_embeddings,
+    ]
+
+    collection.insert(data)
+    print(f"  Inserted {len(PRODUCTS)} graph embeddings")
+
+    print("\n7b. Loading graph collection into memory...")
+    collection.load()
+    print("  Graph collection loaded and ready for queries")
+
+    return len(PRODUCTS)
+
+
+def verify_graph_collection(collection: Any) -> bool:
+    """Verify the graph collection by searching for a known product."""
+    print("\n8b. Running graph collection verification...")
+
+    search_params = {"metric_type": "L2", "params": {"nprobe": 5}}
+    results = collection.search(
+        data=[collection.query(expr="id == 'prod_1'", output_fields=["graph_vector"])[0]["graph_vector"]],
+        anns_field="graph_vector",
+        param=search_params,
+        limit=5,
+        output_fields=["id", "name", "category"],
+    )
+
+    print(f"\n  Graph neighbors for prod_1:")
+    for i, hit in enumerate(results[0]):
+        name = hit.entity.get("name")
+        category = hit.entity.get("category")
+        print(f"    {i + 1}. {name} ({category}) - score: {hit.score:.4f}")
+
+    return True
+
+
 def main():
     """Main entry point."""
     print("=" * 60)
@@ -397,6 +513,9 @@ def main():
     print(f"  Embedding Base URL: {NIM_EMBED_BASE_URL}")
     print(f"  Embedding Endpoint: {EMBED_API_URL}")
     print(f"  Embedding Dimension: {EMBEDDING_DIM}")
+    print(f"  Graph Collection: {GRAPH_COLLECTION_NAME}")
+    print(f"  Graph Embedding Dim: {GRAPH_EMBED_DIM}")
+    print(f"  Graph Layers: {GRAPH_NUM_LAYERS}")
     print(f"  Using Public API: {is_using_public_endpoint()}")
     print(f"  Products to seed: {len(PRODUCTS)}")
     print(f"  Force reseed: {FORCE_RESEED}")
@@ -419,17 +538,27 @@ def main():
         if not wait_for_embedding_service():
             sys.exit(1)
         
-        # Step 4: Create collection
+        # Step 4: Create semantic collection
         collection = create_milvus_collection()
 
-        # Step 5: Seed products with embeddings
+        # Step 5: Seed products with semantic embeddings
         count = seed_products(collection)
 
-        # Step 6: Verify with test query
+        # Step 6: Verify semantic collection
         verify_collection(collection)
+
+        # Step 7: Create graph collection
+        graph_collection = create_graph_collection()
+
+        # Step 8: Seed graph embeddings
+        graph_count = seed_graph_embeddings(graph_collection)
+
+        # Step 9: Verify graph collection
+        verify_graph_collection(graph_collection)
 
         print("\n" + "=" * 60)
         print(f"SUCCESS: Seeded {count} products into Milvus")
+        print(f"SUCCESS: Seeded {graph_count} graph embeddings into Milvus")
         print("=" * 60)
         print("\nThe recommendation and search agents can now retrieve products!")
 
