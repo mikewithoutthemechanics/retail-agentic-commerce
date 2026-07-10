@@ -32,13 +32,14 @@ services:
       apps-sdk:
         condition: service_healthy
     networks:
-      - acp-network
+      - acp-edge-network
+      - acp-app-network
     restart: unless-stopped
 
   # =============================================================================
   # APPLICATION SERVICES
   # =============================================================================
-  
+   
   # Merchant API (Port 8000)
   merchant:
     build:
@@ -63,8 +64,8 @@ services:
     volumes:
       - acp-data:/data
     networks:
-      - acp-network
-      - acp-infra-network
+      - acp-app-network
+      - acp-agents-network
     restart: unless-stopped
 
   # PSP Service (Port 8001)
@@ -81,7 +82,7 @@ services:
     volumes:
       - acp-data:/data
     networks:
-      - acp-network
+      - acp-app-network
     restart: unless-stopped
 
   # Apps SDK MCP Server (Port 2091)
@@ -100,7 +101,8 @@ services:
       - MERCHANT_API_KEY=${MERCHANT_API_KEY:-merchant-api-key-12345}
       - PSP_API_KEY=${PSP_API_KEY:-psp-api-key-12345}
     networks:
-      - acp-network
+      - acp-app-network
+      - acp-agents-network
     restart: unless-stopped
 
   # Frontend UI (Port 3000)
@@ -123,7 +125,8 @@ services:
       # Webhook secret must match merchant's WEBHOOK_SECRET for signature verification
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-whsec_demo_secret}
     networks:
-      - acp-network
+      - acp-edge-network
+      - acp-app-network
       - acp-infra-network
     restart: unless-stopped
 
@@ -149,6 +152,11 @@ services:
       #                    NIM_LLM_MODEL_NAME=nvidia/nemotron-3-nano
       - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
       - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+      # Route all external (internet) traffic through the egress proxy.
+      # Internal service DNS names are excluded via NO_PROXY.
+      - HTTP_PROXY=http://acp-egress-proxy:8888
+      - HTTPS_PROXY=http://acp-egress-proxy:8888
+      - NO_PROXY=localhost,127.0.0.1,milvus-standalone,phoenix,merchant,ui,psp,apps-sdk,promotion-agent,post-purchase-agent,recommendation-agent,search-agent
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 30s
@@ -156,7 +164,7 @@ services:
       start_period: 60s
       retries: 5
     networks:
-      - acp-network
+      - acp-agents-network
       - acp-infra-network
     restart: unless-stopped
 
@@ -173,6 +181,10 @@ services:
       # NIM Configuration
       - NIM_LLM_BASE_URL=${NIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
       - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
+      # Route all external (internet) traffic through the egress proxy.
+      - HTTP_PROXY=http://acp-egress-proxy:8888
+      - HTTPS_PROXY=http://acp-egress-proxy:8888
+      - NO_PROXY=localhost,127.0.0.1,milvus-standalone,phoenix,merchant,ui,psp,apps-sdk,promotion-agent,post-purchase-agent,recommendation-agent,search-agent
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
       interval: 30s
@@ -183,7 +195,7 @@ services:
       promotion-agent:
         condition: service_started
     networks:
-      - acp-network
+      - acp-agents-network
       - acp-infra-network
     restart: unless-stopped
 
@@ -203,6 +215,10 @@ services:
       - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
       - NIM_EMBED_BASE_URL=${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
       - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
+      # Route all external (internet) traffic through the egress proxy.
+      - HTTP_PROXY=http://acp-egress-proxy:8888
+      - HTTPS_PROXY=http://acp-egress-proxy:8888
+      - NO_PROXY=localhost,127.0.0.1,milvus-standalone,phoenix,merchant,ui,psp,apps-sdk,promotion-agent,post-purchase-agent,recommendation-agent,search-agent
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
       interval: 30s
@@ -213,7 +229,7 @@ services:
       promotion-agent:
         condition: service_started
     networks:
-      - acp-network
+      - acp-agents-network
       - acp-infra-network
     restart: unless-stopped
 
@@ -233,6 +249,10 @@ services:
       - NIM_LLM_MODEL_NAME=${NIM_LLM_MODEL_NAME:-nvidia/nemotron-3-nano-30b-a3b}
       - NIM_EMBED_BASE_URL=${NIM_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
       - NIM_EMBED_MODEL_NAME=${NIM_EMBED_MODEL_NAME:-nvidia/nv-embedqa-e5-v5}
+      # Route all external (internet) traffic through the egress proxy.
+      - HTTP_PROXY=http://acp-egress-proxy:8888
+      - HTTPS_PROXY=http://acp-egress-proxy:8888
+      - NO_PROXY=localhost,127.0.0.1,milvus-standalone,phoenix,merchant,ui,psp,apps-sdk,promotion-agent,post-purchase-agent,recommendation-agent,search-agent
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
       interval: 30s
@@ -243,7 +263,7 @@ services:
       promotion-agent:
         condition: service_started
     networks:
-      - acp-network
+      - acp-agents-network
       - acp-infra-network
     restart: unless-stopped
 
@@ -273,13 +293,38 @@ services:
       - acp-infra-network
     restart: "no"
 
+  # =============================================================================
+  # EGRESS PROXY (controlled internet access for NAT agents)
+  # =============================================================================
+
+  # Tinyproxy is the single egress point for agent outbound internet traffic
+  # (NVIDIA API, NIM endpoints). It is NOT published to the host. Agents route
+  # through it via HTTP_PROXY/HTTPS_PROXY and bypass it for internal services
+  # via NO_PROXY. For true egress enforcement, additionally restrict the
+  # acp-agents-network at the host firewall (drop outbound except to this proxy).
+  acp-egress-proxy:
+    image: monokal/tinyproxy
+    container_name: acp-egress-proxy
+    environment:
+      - TINYPROXY_PORT=8888
+    networks:
+      - acp-agents-network
+    restart: unless-stopped
+
 # =============================================================================
 # NETWORKS
 # =============================================================================
 networks:
-  acp-network:
+  # Public edge: reverse proxy <-> frontend UI only
+  acp-edge-network:
     driver: bridge
-  # External network created by docker-compose.infra.yml
+  # Application backend services (merchant, psp, apps-sdk)
+  acp-app-network:
+    driver: bridge
+  # NAT agent cluster, isolated from edge/app by default
+  acp-agents-network:
+    driver: bridge
+  # Shared observability/vector infra (external, created by docker-compose.infra.yml)
   acp-infra-network:
     external: true
 
