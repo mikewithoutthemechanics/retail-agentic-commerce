@@ -71,6 +71,29 @@
   --block-bg-elevated: rgba(255, 255, 255, 0.06);
 }
 
+/* ============================================
+   Tailwind 4 Design Tokens
+   Maps app design tokens to first-class utilities.
+   ============================================ */
+@theme inline {
+  --color-surface-base: #0c0c0c;
+  --color-block-bg: rgba(255, 255, 255, 0.045);
+  --color-block-bg-elevated: rgba(255, 255, 255, 0.06);
+  --color-glass-border: rgba(255, 255, 255, 0.1);
+  --color-glass-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-text-muted: rgba(255, 255, 255, 0.62);
+  --color-text-secondary: rgba(255, 255, 255, 0.82);
+  --color-text-faint: rgba(255, 255, 255, 0.4);
+  --color-accent-green: #76b900;
+  --color-accent-green-bg: rgba(118, 185, 0, 0.12);
+  --color-accent-green-border: rgba(118, 185, 0, 0.35);
+  --color-accent-green-glow: rgba(118, 185, 0, 0.15);
+  --color-accent-yellow: #ffd36b;
+  --color-accent-yellow-bg: rgba(255, 211, 107, 0.1);
+  --color-accent-yellow-border: rgba(255, 211, 107, 0.3);
+  --color-error: #ff6b6b;
+}
+
 /* Custom scrollbar for dark theme */
 ::-webkit-scrollbar {
   width: 8px;
@@ -809,6 +832,45 @@ body {
 .glass-tag.yellow {
   border-color: rgba(255, 211, 107, 0.25);
   background: rgba(255, 211, 107, 0.08);
+}
+
+/* ============================================
+   Gradient Background Overlays
+   ============================================ */
+.gradient-overlay-top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 500px;
+  background: linear-gradient(80.22deg, #bff230 1.49%, #7cd7fe 99.95%);
+  opacity: 0.12;
+  z-index: 0;
+  mask-image: radial-gradient(ellipse 150% 120% at top, black 0%, black 30%, transparent 70%);
+  -webkit-mask-image: radial-gradient(
+    ellipse 150% 120% at top,
+    black 0%,
+    black 30%,
+    transparent 70%
+  );
+}
+
+.gradient-overlay-bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 300px;
+  background: linear-gradient(80.22deg, #bff230 1.49%, #7cd7fe 99.95%);
+  opacity: 0.12;
+  z-index: 0;
+  mask-image: radial-gradient(ellipse 120% 130% at bottom, black 0%, black 25%, transparent 60%);
+  -webkit-mask-image: radial-gradient(
+    ellipse 120% 130% at bottom,
+    black 0%,
+    black 25%,
+    transparent 60%
+  );
 }
 
 /* ============================================

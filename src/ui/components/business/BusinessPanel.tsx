@@ -3,6 +3,8 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useACPLog, type ACPEvent, type ACPEventType } from "@/hooks/useACPLog";
 import { useCheckoutEvents } from "@/hooks/useCheckoutEvents";
+import { GlassBadge, GlassIconBox, GlassPanel } from "@/components/glass";
+import { ProtocolToggle } from "@/components/business/ProtocolToggle";
 import type { CheckoutProtocol } from "@/types";
 
 /**
@@ -57,41 +59,20 @@ function ACPEventItem({ event }: { event: ACPEvent }) {
       <div className="time">{formatTime(event.timestamp)}</div>
       <div className="msg">
         {isPending ? (
-          <span style={{ color: "var(--text-muted)" }}>Processing request...</span>
+          <span className="text-text-muted">Processing request...</span>
         ) : (
           <>
-            <div
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span style={{ color: "var(--text-muted)" }}>{event.method}</span>{" "}
-              <span style={{ color: "var(--text-secondary)" }}>{event.endpoint}</span>
+            <div className="overflow-hidden text-ellipsis whitespace-nowrap">
+              <span className="text-text-muted">{event.method}</span>{" "}
+              <span className="text-text-secondary">{event.endpoint}</span>
             </div>
             {event.responseSummary && (
-              <span
-                style={{
-                  display: "block",
-                  marginTop: "4px",
-                  color: isError ? "#FF6B6B" : "var(--accent-green)",
-                }}
-              >
+              <span className={`block mt-1 ${isError ? "text-error" : "text-accent-green"}`}>
                 {isError ? "✗" : "✓"} {event.responseSummary}
               </span>
             )}
             {event.duration != null && event.duration > 0 && (
-              <span
-                style={{
-                  display: "block",
-                  marginTop: "2px",
-                  color: "var(--text-faint)",
-                  fontSize: "11px",
-                }}
-              >
-                {event.duration}ms
-              </span>
+              <span className="block mt-0.5 text-text-faint text-xs">{event.duration}ms</span>
             )}
           </>
         )}
@@ -110,32 +91,9 @@ function EmptyState({ protocol }: { protocol: CheckoutProtocol }) {
   const protocolLabel = protocol === "ucp" ? "UCP" : "ACP";
 
   return (
-    <div
-      className="glass-content"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        flex: 1,
-        padding: "48px 24px",
-        textAlign: "center",
-      }}
-    >
+    <div className="glass-content flex flex-col items-center justify-center flex-1 p-12 px-6 text-center">
       {/* Icon */}
-      <div
-        style={{
-          width: "48px",
-          height: "48px",
-          borderRadius: "14px",
-          background: "var(--block-bg)",
-          border: "1px solid var(--glass-border)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: "16px",
-        }}
-      >
+      <GlassIconBox size="md" className="mb-4">
         <svg
           width="24"
           height="24"
@@ -145,30 +103,13 @@ function EmptyState({ protocol }: { protocol: CheckoutProtocol }) {
           strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"
-          style={{ color: "var(--text-muted)" }}
+          className="text-text-muted"
         >
           <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
         </svg>
-      </div>
-      <h3
-        style={{
-          margin: "0 0 8px",
-          fontSize: "14px",
-          fontWeight: "600",
-          color: "var(--text-secondary)",
-        }}
-      >
-        No active session
-      </h3>
-      <p
-        style={{
-          margin: 0,
-          fontSize: "12px",
-          color: "var(--text-muted)",
-          lineHeight: "1.45",
-          maxWidth: "240px",
-        }}
-      >
+      </GlassIconBox>
+      <h3 className="m-0 mb-2 text-sm font-semibold text-text-secondary">No active session</h3>
+      <p className="m-0 text-sm text-text-muted leading-snug max-w-60">
         Select a product from the Client Agent panel to start a checkout session using{" "}
         {protocolLabel}.
       </p>
@@ -200,55 +141,19 @@ function ActiveSession({
   const protocolLabel = protocol === "ucp" ? "UCP" : "ACP";
 
   return (
-    <div
-      className="glass-content"
-      style={{ display: "flex", flexDirection: "column", gap: "14px" }}
-    >
+    <div className="glass-content flex flex-col gap-3.5">
       {/* Header with request count */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "8px",
-        }}
-      >
-        <h3
-          style={{
-            margin: 0,
-            fontSize: "12px",
-            color: "rgba(255, 255, 255, 0.80)",
-            letterSpacing: "0.8px",
-            textTransform: "uppercase",
-          }}
-        >
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="m-0 text-xs text-white/80 tracking-wider uppercase font-semibold">
           {protocolLabel} Communication
         </h3>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-text-muted">
             {events.length} request{events.length !== 1 ? "s" : ""}
           </span>
           <button
             onClick={onClear}
-            style={{
-              padding: "4px 10px",
-              fontSize: "11px",
-              fontWeight: "500",
-              color: "var(--text-muted)",
-              background: "var(--block-bg)",
-              border: "1px solid var(--glass-border)",
-              borderRadius: "6px",
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--glass-border)";
-              e.currentTarget.style.color = "var(--text-secondary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "var(--block-bg)";
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
+            className="px-2.5 py-1 text-xs font-medium text-text-muted bg-block-bg border border-glass-border rounded-md cursor-pointer transition-all duration-150 hover:bg-glass-border hover:text-text-secondary"
             title="Clear all logs"
           >
             Clear
@@ -257,68 +162,11 @@ function ActiveSession({
       </div>
 
       {/* Timeline */}
-      <div
-        ref={scrollRef}
-        className="glass-timeline"
-        style={{ maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}
-      >
+      <div ref={scrollRef} className="glass-timeline max-h-[calc(100vh-200px)] overflow-y-auto">
         {[...events].reverse().map((event) => (
           <ACPEventItem key={event.id} event={event} />
         ))}
       </div>
-    </div>
-  );
-}
-
-function ProtocolToggle({
-  protocol,
-  onProtocolChange,
-}: {
-  protocol: CheckoutProtocol;
-  onProtocolChange: (protocol: CheckoutProtocol) => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "inline-flex",
-        gap: "4px",
-        padding: "4px",
-        borderRadius: "10px",
-        border: "1px solid var(--glass-border-subtle, rgba(255, 255, 255, 0.08))",
-        background: "var(--block-bg, rgba(255, 255, 255, 0.045))",
-      }}
-      role="tablist"
-      aria-label="Protocol selector"
-    >
-      {(["acp", "ucp"] as const).map((tab) => {
-        const active = protocol === tab;
-        return (
-          <button
-            key={tab}
-            role="tab"
-            aria-selected={active}
-            type="button"
-            onClick={() => onProtocolChange(tab)}
-            style={{
-              minWidth: "52px",
-              padding: "6px 12px",
-              borderRadius: "8px",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "12px",
-              fontWeight: 600,
-              letterSpacing: "0.4px",
-              color: active ? "var(--accent-green, #76b900)" : "var(--text-muted)",
-              background: active
-                ? "var(--accent-green-bg, rgba(118, 185, 0, 0.12))"
-                : "transparent",
-              transition: "all 0.2s ease",
-            }}
-          >
-            {tab.toUpperCase()}
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -366,24 +214,17 @@ export function BusinessPanel({ protocol, onProtocolChange }: BusinessPanelProps
   );
 
   return (
-    <section
-      className="glass-panel flex-1 flex flex-col h-full overflow-hidden"
+    <GlassPanel
+      className="flex-1 flex flex-col h-full overflow-hidden"
+      role="region"
       aria-label="Merchant Panel"
     >
       {/* Glass Panel Header */}
       <div className="glass-panel-header">
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "12px",
-          }}
-        >
-          <div className={`glass-badge ${hasEvents ? "yellow" : "gray"}`}>
-            <span className={`glass-dot ${hasEvents ? "live" : ""}`}></span>
+        <div className="flex items-center justify-between gap-3">
+          <GlassBadge variant={hasEvents ? "yellow" : "gray"} live={hasEvents}>
             Merchant Server
-          </div>
+          </GlassBadge>
           <ProtocolToggle protocol={protocol} onProtocolChange={handleProtocolChange} />
         </div>
       </div>
@@ -394,6 +235,6 @@ export function BusinessPanel({ protocol, onProtocolChange }: BusinessPanelProps
       ) : (
         <ActiveSession events={state.events} onClear={handleClear} protocol={protocol} />
       )}
-    </section>
+    </GlassPanel>
   );
 }
