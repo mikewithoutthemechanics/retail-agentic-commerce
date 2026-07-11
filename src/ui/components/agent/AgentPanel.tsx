@@ -11,6 +11,7 @@ import { PaymentShippingForm } from "./PaymentShippingForm";
 import { ModeTabSwitcher } from "./ModeTabSwitcher";
 import { MerchantIframeContainer } from "./MerchantIframeContainer";
 import { SearchPromptBar } from "./SearchPromptBar";
+import { WebhookNotificationBanner } from "./WebhookNotificationBanner";
 import { useCheckoutFlow } from "@/hooks/useCheckoutFlow";
 import { useACPLog } from "@/hooks/useACPLog";
 import { useAgentActivityLog } from "@/hooks/useAgentActivityLog";
@@ -89,136 +90,6 @@ function PaymentModal({ isOpen, onClose, children }: PaymentModalProps) {
         </button>
         {children}
       </div>
-    </div>
-  );
-}
-
-/**
- * Loading skeleton for checkout card
- */
-/**
- * Webhook notification banner - displays post-purchase updates inside the Client Agent panel
- * Simulates the buyer receiving notifications from the merchant
- */
-function WebhookNotificationBanner({
-  notification,
-  onDismiss,
-}: {
-  notification: {
-    subject: string;
-    message: string;
-    status: string;
-    orderId: string;
-  };
-  onDismiss: () => void;
-}) {
-  return (
-    <div className="webhook-notification-banner">
-      <div className="notification-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-          <polyline points="22 4 12 14.01 9 11.01" />
-        </svg>
-      </div>
-      <div className="notification-content">
-        <div className="notification-subject">{notification.subject}</div>
-        <div className="notification-message">{notification.message}</div>
-        <div className="notification-meta">
-          Order: {notification.orderId.slice(0, 12)}... • {notification.status.replace(/_/g, " ")}
-        </div>
-      </div>
-      <button className="notification-close" onClick={onDismiss} aria-label="Dismiss notification">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-
-      <style jsx>{`
-        .webhook-notification-banner {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          margin: 0 24px 16px 24px;
-          padding: 14px 16px;
-          background: linear-gradient(135deg, rgba(118, 185, 0, 0.12), rgba(118, 185, 0, 0.06));
-          border: 1px solid rgba(118, 185, 0, 0.25);
-          border-radius: 12px;
-          animation: slideDown 0.3s ease-out;
-        }
-
-        @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translateY(-12px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .notification-icon {
-          flex-shrink: 0;
-          width: 20px;
-          height: 20px;
-          color: #76b900;
-          margin-top: 2px;
-        }
-
-        .notification-icon svg {
-          width: 100%;
-          height: 100%;
-        }
-
-        .notification-content {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .notification-subject {
-          font-size: 13px;
-          font-weight: 600;
-          color: #76b900;
-          margin-bottom: 4px;
-          line-height: 1.3;
-        }
-
-        .notification-message {
-          font-size: 12px;
-          color: rgba(255, 255, 255, 0.8);
-          line-height: 1.5;
-          white-space: pre-wrap;
-          margin-bottom: 6px;
-        }
-
-        .notification-meta {
-          font-size: 10px;
-          color: rgba(255, 255, 255, 0.45);
-          text-transform: capitalize;
-        }
-
-        .notification-close {
-          flex-shrink: 0;
-          width: 18px;
-          height: 18px;
-          padding: 0;
-          border: none;
-          background: transparent;
-          color: rgba(255, 255, 255, 0.4);
-          cursor: pointer;
-          transition: color 0.2s;
-        }
-
-        .notification-close:hover {
-          color: rgba(255, 255, 255, 0.8);
-        }
-
-        .notification-close svg {
-          width: 100%;
-          height: 100%;
-        }
-      `}</style>
     </div>
   );
 }
@@ -666,7 +537,7 @@ export function AgentPanel({ protocol }: AgentPanelProps) {
       {activeMode === "native" && (
         <>
           {/* Content area */}
-          <div className="glass-content flex-1 overflow-y-auto" style={{ padding: "24px 32px" }}>
+          <div className="glass-content flex-1 overflow-y-auto p-6 px-8">
             <Stack gap="6">
               {/* Chat message */}
               <Stack gap="3">
@@ -763,12 +634,12 @@ export function AgentPanel({ protocol }: AgentPanelProps) {
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Show user's search query as chat message */}
           {appsSdkLastPrompt && (
-            <div style={{ padding: "24px 32px 16px 32px" }}>
+            <div className="px-8 pt-6 pb-4">
               <ChatMessage message={appsSdkLastPrompt} />
             </div>
           )}
           {/* Search bar */}
-          <div className="pb-3" style={{ paddingLeft: "16px", paddingRight: "16px" }}>
+          <div className="pb-3 px-4">
             <SearchPromptBar
               value={appsSdkQuery}
               onChange={setAppsSdkQuery}
