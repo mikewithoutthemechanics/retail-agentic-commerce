@@ -24,12 +24,12 @@ from __future__ import annotations
 
 import logging
 import time
+from contextlib import contextmanager
 from typing import Any, TypedDict
 
 from pymilvus import Collection, connections, utility
 
 from src.merchant.config import get_settings
-from src.merchant.db.models import Product
 from src.merchant.services.agent_outcomes import record_agent_outcome
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,9 @@ class GraphRecommendationSettings:
         self.milvus_uri = settings.milvus_uri
         self.graph_collection_name = "product_catalog_graph"
         self.top_k = int(getattr(settings, "graph_recommendation_top_k", 10))
-        self.min_similarity = float(getattr(settings, "graph_recommendation_min_similarity", 0.0))
+        self.min_similarity = float(
+            getattr(settings, "graph_recommendation_min_similarity", 0.0)
+        )
         self.timeout = float(getattr(settings, "graph_recommendation_timeout", 10.0))
 
 
@@ -85,22 +87,37 @@ def _parse_milvus_uri(uri: str) -> tuple[str, str]:
     return host, port
 
 
-def _get_graph_collection(settings: GraphRecommendationSettings) -> Collection | None:
-    """Connect to Milvus and return the graph collection."""
+def _sanitize_milvus_string(value: str) -> str:
+    """Escape single quotes for safe Milvus expression interpolation."""
+    if not value:
+        raise ValueError("product_id must not be empty")
+    return value.replace("'", "''")
+
+
+@contextmanager
+def _get_graph_collection(settings: GraphRecommendationSettings):
+    """Connect to Milvus and yield the graph collection."""
+    host, port = _parse_milvus_uri(settings.milvus_uri)
     try:
-        host, port = _parse_milvus_uri(settings.milvus_uri)
         connections.connect(alias="graph_recsys", host=host, port=port)
     except Exception as exc:
         logger.warning("Failed to connect to Milvus for graph recommendations: %s", exc)
-        return None
+        yield None
+        return
 
-    if not utility.has_collection(settings.graph_collection_name):
-        logger.warning("Graph collection '%s' does not exist", settings.graph_collection_name)
-        return None
+    try:
+        if not utility.has_collection(settings.graph_collection_name):
+            logger.warning(
+                "Graph collection '%s' does not exist", settings.graph_collection_name
+            )
+            yield None
+            return
 
-    collection = Collection(settings.graph_collection_name)
-    collection.load()
-    return collection
+        collection = Collection(settings.graph_collection_name)
+        collection.load()
+        yield collection
+    finally:
+        connections.disconnect(alias="graph_recsys")
 
 
 def _search_graph_collection(
@@ -176,39 +193,43 @@ async def get_graph_recommendations(
         top_k = settings.top_k
 
     try:
-        collection = _get_graph_collection(settings)
-        if collection is None:
-            status = "fallback_success"
-            error_code = "milvus_unavailable"
-            return []
+        with _get_graph_collection(settings) as collection:
+            if collection is None:
+                status = "fallback_success"
+                error_code = "milvus_unavailable"
+                return []
 
-        expr = f"id == '{product_id}'"
-        rows = collection.query(expr=expr, output_fields=["graph_vector"])
-        if not rows:
-            status = "fallback_success"
-            error_code = "product_not_found"
-            return []
+            expr = f"id == '{_sanitize_milvus_string(product_id)}'"
+            rows = collection.query(expr=expr, output_fields=["graph_vector"])
+            if not rows:
+                status = "fallback_success"
+                error_code = "product_not_found"
+                return []
 
-        query_vector = rows[0]["graph_vector"]
-        hits = _search_graph_collection(collection, query_vector, top_k, exclude_ids + [product_id])
-
-        recommendations: list[GraphRecommendationOutput] = []
-        for hit in hits:
-            recommendations.append(
-                {
-                    "product_id": hit["product_id"],
-                    "product_name": hit["product_name"],
-                    "category": hit["category"],
-                    "score": hit["score"],
-                    "source": "graph_lightgcn",
-                }
+            query_vector = rows[0]["graph_vector"]
+            hits = _search_graph_collection(
+                collection, query_vector, top_k, exclude_ids + [product_id]
             )
 
-        return recommendations
+            recommendations: list[GraphRecommendationOutput] = []
+            for hit in hits:
+                recommendations.append(
+                    {
+                        "product_id": hit["product_id"],
+                        "product_name": hit["product_name"],
+                        "category": hit["category"],
+                        "score": hit["score"],
+                        "source": "graph_lightgcn",
+                    }
+                )
+
+            return recommendations
     except Exception as exc:
         status = "error_internal"
         error_code = "internal_exception"
-        logger.warning("Graph recommendation failed for product %s: %s", product_id, exc)
+        logger.warning(
+            "Graph recommendation failed for product %s: %s", product_id, exc
+        )
         return []
     finally:
         latency_ms = int((time.perf_counter() - started) * 1000)
@@ -275,17 +296,19 @@ def get_graph_embeddings_for_products(
     Returns:
         List of dicts with product_id and embedding vector.
     """
-    from src.data.product_graph import train_lightgcn, LightGCNConfig
     from src.data.product_catalog import PRODUCTS
+    from src.data.product_graph import LightGCNConfig, train_lightgcn
 
     by_id = {p["id"]: p for p in PRODUCTS}
     products = [by_id[pid] for pid in product_ids if pid in by_id]
     if not products:
         return []
 
-    config = LightGCNConfig(embedding_dim=32, num_layers=2, epochs=20, negative_samples=2)
+    config = LightGCNConfig(
+        embedding_dim=32, num_layers=2, epochs=20, negative_samples=2
+    )
     result = train_lightgcn(products, config)
     return [
         {"product_id": pid, "embedding": emb}
-        for pid, emb in zip(product_ids, result.embeddings)
+        for pid, emb in zip(product_ids, result.embeddings, strict=True)
     ]

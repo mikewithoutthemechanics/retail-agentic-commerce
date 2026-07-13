@@ -17,15 +17,12 @@
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.merchant.services.graph_recommendation import (
-    GraphRecommendationOutput,
-    _search_graph_collection,
+    get_graph_embeddings_for_products,
     get_graph_recommendations,
     get_graph_recommendations_for_cart,
-    get_graph_embeddings_for_products,
 )
 
 
@@ -45,9 +42,13 @@ class TestGraphRecommendations:
         assert results == []
 
     @patch("src.merchant.services.graph_recommendation._get_graph_collection")
-    def test_get_graph_recommendations_success(self, mock_get_collection: MagicMock) -> None:
+    async def test_get_graph_recommendations_success(
+        self, mock_get_collection: MagicMock
+    ) -> None:
         """Returns recommendations when Milvus is available."""
         mock_collection = MagicMock()
+        mock_collection.__enter__ = MagicMock(return_value=mock_collection)
+        mock_collection.__exit__ = MagicMock(return_value=False)
         entity_mock = MagicMock()
         entity_mock.get.side_effect = lambda k, d=None: {
             "id": "prod_5",
@@ -61,24 +62,24 @@ class TestGraphRecommendations:
         mock_collection.search.return_value = [[hit]]
         mock_get_collection.return_value = mock_collection
 
-        results = asyncio.get_event_loop().run_until_complete(
-            get_graph_recommendations("prod_1", top_k=1)
-        )
+        results = await get_graph_recommendations("prod_1", top_k=1)
         assert len(results) == 1
         assert results[0]["product_id"] == "prod_5"
         assert results[0]["source"] == "graph_lightgcn"
 
     @patch("src.merchant.services.graph_recommendation._get_graph_collection")
-    def test_get_graph_recommendations_milvus_unavailable(self, mock_get_collection: MagicMock) -> None:
+    async def test_get_graph_recommendations_milvus_unavailable(
+        self, mock_get_collection: MagicMock
+    ) -> None:
         """Returns empty list when Milvus is unavailable."""
         mock_get_collection.return_value = None
-        results = asyncio.get_event_loop().run_until_complete(
-            get_graph_recommendations("prod_1")
-        )
+        results = await get_graph_recommendations("prod_1")
         assert results == []
 
     @patch("src.merchant.services.graph_recommendation.get_graph_recommendations")
-    def test_get_graph_recommendations_for_cart_merges_results(self, mock_rec: AsyncMock) -> None:
+    async def test_get_graph_recommendations_for_cart_merges_results(
+        self, mock_rec: AsyncMock
+    ) -> None:
         """Merges and deduplicates recommendations across cart items."""
         mock_rec.return_value = [
             {
@@ -90,8 +91,8 @@ class TestGraphRecommendations:
             }
         ]
 
-        results = asyncio.get_event_loop().run_until_complete(
-            get_graph_recommendations_for_cart(["prod_1", "prod_9"], top_k=2)
+        results = await get_graph_recommendations_for_cart(
+            ["prod_1", "prod_9"], top_k=2
         )
         assert len(results) == 1
         assert results[0]["product_id"] == "prod_5"
