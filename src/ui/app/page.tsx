@@ -24,74 +24,41 @@ export default function Home() {
     <ACPLogProvider>
       <AgentActivityLogProvider>
         <WebhookToAgentActivityBridge />
-        <div className="min-h-screen h-screen bg-surface-base relative overflow-hidden">
+        <div className="bg-surface-base relative h-screen min-h-screen overflow-hidden">
           {/* Nebula Background */}
           <div
-            className="pointer-events-none"
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              width: "100vw",
-              height: "100vh",
-              zIndex: 0,
-              overflow: "hidden",
-            }}
+            aria-hidden="true"
+            className="pointer-events-none fixed inset-0 z-0 h-screen w-screen overflow-hidden"
           >
-            <div style={{ width: "100%", height: "100%" }}>
+            <div className="h-full w-full">
               <Nebula variant="ambient" />
             </div>
           </div>
 
-          {/* Top Green Gradient Overlay */}
+          {/* Top Green Gradient Overlay (KUI green-100 -> blue-200) */}
           <div
-            className="pointer-events-none"
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: "500px",
-              background: "linear-gradient(80.22deg, #BFF230 1.49%, #7CD7FE 99.95%)",
-              opacity: 0.12,
-              zIndex: 0,
-              maskImage:
-                "radial-gradient(ellipse 150% 120% at top, black 0%, black 30%, transparent 70%)",
-              WebkitMaskImage:
-                "radial-gradient(ellipse 150% 120% at top, black 0%, black 30%, transparent 70%)",
-            }}
+            aria-hidden="true"
+            className="pointer-events-none fixed left-0 right-0 top-0 z-0 h-[500px] opacity-[0.12]
+              bg-[linear-gradient(80.22deg,var(--color-green-100)_1.49%,var(--color-blue-200)_99.95%)]
+              [mask-image:radial-gradient(ellipse_150%_120%_at_top,black_0%,black_30%,transparent_70%)]
+              [-webkit-mask-image:radial-gradient(ellipse_150%_120%_at_top,black_0%,black_30%,transparent_70%)]"
           />
 
-          {/* Bottom Green Gradient Overlay */}
+          {/* Bottom Green Gradient Overlay (KUI green-100 -> blue-200) */}
           <div
-            className="pointer-events-none"
-            style={{
-              position: "fixed",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: "300px",
-              background: "linear-gradient(80.22deg, #BFF230 1.49%, #7CD7FE 99.95%)",
-              opacity: 0.12,
-              zIndex: 0,
-              maskImage:
-                "radial-gradient(ellipse 120% 130% at bottom, black 0%, black 25%, transparent 60%)",
-              WebkitMaskImage:
-                "radial-gradient(ellipse 120% 130% at bottom, black 0%, black 25%, transparent 60%)",
-            }}
+            aria-hidden="true"
+            className="pointer-events-none fixed bottom-0 left-0 right-0 z-0 h-[300px] opacity-[0.12]
+              bg-[linear-gradient(80.22deg,var(--color-green-100)_1.49%,var(--color-blue-200)_99.95%)]
+              [mask-image:radial-gradient(ellipse_120%_130%_at_bottom,black_0%,black_25%,transparent_60%)]
+              [-webkit-mask-image:radial-gradient(ellipse_120%_130%_at_bottom,black_0%,black_25%,transparent_60%)]"
           />
 
           {/* Content Layer */}
-          <div className="relative flex flex-col h-full" style={{ zIndex: 1 }}>
+          <div className="relative z-[1] flex h-full flex-col">
             <Navbar />
             {/* Outer container with generous gutters for premium feel */}
-            <div className="flex-1 flex flex-col min-h-0" style={{ padding: "24px 40px" }}>
-              <main
-                className="flex-1 flex items-stretch w-full h-full min-h-0"
-                style={{ gap: "32px" }}
-              >
+            <div className="flex min-h-0 flex-1 flex-col px-10 py-6">
+              <main className="flex h-full w-full min-h-0 items-stretch gap-8">
                 {/* Agent Panel Container */}
                 <div className="flex-1 flex min-w-0">
                   <AgentPanel protocol={protocol} />

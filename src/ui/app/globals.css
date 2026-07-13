@@ -50,15 +50,15 @@
   --header-bg: rgba(0, 0, 0, 0.12);
   --header-blur: blur(10px);
 
-  /* Accent Colors - NVIDIA Green */
-  --accent-green: #76b900;
-  --accent-green-glow: rgba(118, 185, 0, 0.15);
-  --accent-green-border: rgba(118, 185, 0, 0.35);
-  --accent-green-bg: rgba(118, 185, 0, 0.12);
-  --accent-green-subtle: rgba(118, 185, 0, 0.1);
-  --accent-yellow: #ffd36b;
-  --accent-yellow-border: rgba(255, 211, 107, 0.3);
-  --accent-yellow-bg: rgba(255, 211, 107, 0.1);
+  /* Accent Colors - mapped to KUI design tokens (NVIDIA Green / Yellow) */
+  --accent-green: var(--color-brand);
+  --accent-green-glow: color-mix(in srgb, var(--color-brand) 15%, transparent);
+  --accent-green-border: color-mix(in srgb, var(--color-brand) 35%, transparent);
+  --accent-green-bg: color-mix(in srgb, var(--color-brand) 12%, transparent);
+  --accent-green-subtle: color-mix(in srgb, var(--color-brand) 10%, transparent);
+  --accent-yellow: var(--color-yellow-200);
+  --accent-yellow-border: color-mix(in srgb, var(--color-yellow-200) 30%, transparent);
+  --accent-yellow-bg: color-mix(in srgb, var(--color-yellow-200) 10%, transparent);
 
   /* Text Colors */
   --text-primary: rgba(255, 255, 255, 0.92);
@@ -69,6 +69,49 @@
   /* Block/Card backgrounds */
   --block-bg: rgba(255, 255, 255, 0.045);
   --block-bg-elevated: rgba(255, 255, 255, 0.06);
+}
+
+/* ============================================
+   Glass Design Tokens -> Tailwind 4 Utilities
+   ============================================
+   Expose the custom glass tokens (and KUI-mapped accent tokens) as
+   Tailwind theme values so they can be used as first-class utilities
+   (e.g. `bg-block-bg`, `border-glass-border`, `text-glass-fg-muted`,
+   `rounded-glass`, `shadow-glass`). Using `@theme inline` keeps them
+   referencing the canonical custom properties above, so they stay in
+   sync with the glassmorphic design system.
+*/
+@theme inline {
+  /* Glass surfaces & borders */
+  --color-block-bg: var(--block-bg);
+  --color-block-bg-elevated: var(--block-bg-elevated);
+  --color-glass-border: var(--glass-border);
+  --color-glass-border-subtle: var(--glass-border-subtle);
+
+  /* Glass foreground / text tokens */
+  --color-glass-fg-primary: var(--text-primary);
+  --color-glass-fg-secondary: var(--text-secondary);
+  --color-glass-fg-muted: var(--text-muted);
+  --color-glass-fg-faint: var(--text-faint);
+
+  /* Accent tokens (mapped to KUI brand / yellow) */
+  --color-accent-green: var(--accent-green);
+  --color-accent-green-bg: var(--accent-green-bg);
+  --color-accent-green-border: var(--accent-green-border);
+  --color-accent-green-glow: var(--accent-green-glow);
+  --color-accent-green-subtle: var(--accent-green-subtle);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-yellow-bg: var(--accent-yellow-bg);
+  --color-accent-yellow-border: var(--accent-yellow-border);
+
+  /* Radii */
+  --radius-glass: var(--glass-radius);
+  --radius-glass-sm: var(--glass-radius-sm);
+  --radius-glass-xs: var(--glass-radius-xs);
+
+  /* Effects */
+  --shadow-glass: var(--glass-shadow);
+  --blur-glass: 20px;
 }
 
 /* Custom scrollbar for dark theme */
