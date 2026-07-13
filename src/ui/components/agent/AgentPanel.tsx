@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Stack, Flex, Text } from "@kui/foundations-react-external";
+import { GlassBadge, GlassDot, GlassPanel } from "@/components/glass";
 import { ChatMessage } from "./ChatMessage";
 import { ProductGrid } from "./ProductGrid";
 import { CheckoutCard } from "./CheckoutCard";
@@ -642,16 +643,16 @@ export function AgentPanel({ protocol }: AgentPanelProps) {
     showCheckoutModal || showConfirmationModal || (isModalOpen && context.isLoading);
 
   return (
-    <section
-      className="glass-panel flex-1 flex flex-col h-full overflow-hidden relative"
+    <GlassPanel
+      className="relative flex flex-1 flex-col h-full overflow-hidden"
       aria-label="Agent Panel"
     >
       {/* Glass Panel Header */}
       <div className="glass-panel-header">
-        <div className="glass-badge gray">
-          <span className="glass-dot"></span>
+        <GlassBadge variant="gray">
+          <GlassDot />
           Client Agent
-        </div>
+        </GlassBadge>
       </div>
 
       {/* Mode Tab Switcher */}
@@ -666,7 +667,7 @@ export function AgentPanel({ protocol }: AgentPanelProps) {
       {activeMode === "native" && (
         <>
           {/* Content area */}
-          <div className="glass-content flex-1 overflow-y-auto" style={{ padding: "24px 32px" }}>
+          <div className="glass-content flex-1 overflow-y-auto px-8 py-6">
             <Stack gap="6">
               {/* Chat message */}
               <Stack gap="3">
@@ -763,12 +764,12 @@ export function AgentPanel({ protocol }: AgentPanelProps) {
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Show user's search query as chat message */}
           {appsSdkLastPrompt && (
-            <div style={{ padding: "24px 32px 16px 32px" }}>
+            <div className="px-8 pb-4 pt-6">
               <ChatMessage message={appsSdkLastPrompt} />
             </div>
           )}
           {/* Search bar */}
-          <div className="pb-3" style={{ paddingLeft: "16px", paddingRight: "16px" }}>
+          <div className="px-4 pb-3">
             <SearchPromptBar
               value={appsSdkQuery}
               onChange={setAppsSdkQuery}
@@ -784,6 +785,6 @@ export function AgentPanel({ protocol }: AgentPanelProps) {
           )}
         </div>
       )}
-    </section>
+    </GlassPanel>
   );
 }
