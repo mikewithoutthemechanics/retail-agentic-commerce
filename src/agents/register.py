@@ -106,6 +106,14 @@ class RAGRetrieverConfig(FunctionBaseConfig, name="rag_retriever"):
         default=FunctionRef("product_search"),
         description="Retriever tool to execute (typically a nat_retriever function).",
     )
+    multi_source: bool = Field(
+        default=False,
+        description="Whether to merge results from secondary retrievers.",
+    )
+    secondary_retrievers: list[FunctionRef] = Field(
+        default_factory=list,
+        description="Additional retriever tools to query for multi-source retrieval.",
+    )
 
 
 @register_function(
@@ -216,6 +224,25 @@ async def rag_retriever_function(config: RAGRetrieverConfig, builder: Builder):
             _normalize_candidate(document)
             for document in _extract_documents(raw_retriever_output)
         ]
+
+        if config.multi_source and config.secondary_retrievers:
+            seen_ids: set[str] = {c["product_id"] for c in candidates if c["product_id"]}
+            for secondary_ref in config.secondary_retrievers:
+                try:
+                    secondary_tool = await builder.get_function(secondary_ref)
+                    secondary_output = await secondary_tool.acall_invoke(query=search_query)
+                    secondary_documents = _extract_documents(secondary_output)
+                    for document in secondary_documents:
+                        candidate = _normalize_candidate(document)
+                        if candidate["product_id"] and candidate["product_id"] not in seen_ids:
+                            seen_ids.add(candidate["product_id"])
+                            candidates.append(candidate)
+                except Exception as exc:
+                    logger.warning(
+                        "Secondary retriever %s failed: %s",
+                        getattr(secondary_ref, "name", secondary_ref),
+                        exc,
+                    )
 
         retrieval_result = {
             "user_query": user_query,

@@ -85,6 +85,13 @@ retrievers:
     embedding_model: product_embedder
     top_k: 10
 
+  graph_retriever:
+    _type: milvus_retriever
+    uri: ${MILVUS_URI:-http://localhost:19530}
+    collection_name: "product_catalog_graph"
+    embedding_model: product_embedder
+    top_k: 10
+
 functions:
   # -- Step 1: RAG retrieval setup ---------------------------------------------
   product_search:
@@ -97,6 +104,13 @@ functions:
     _type: rag_retriever
     retrieval_tool_name: product_search
     top_k: 10
+    multi_source: true
+    secondary_retrievers: [graph_search]
+
+  graph_search:
+    _type: nat_retriever
+    retriever: graph_retriever
+    topic: Search product graph for relationship-aware recommendations
 
   # -- Step 2a: NLI Agent (LLM) ------------------------------------------------
   nli_agent_chat:
