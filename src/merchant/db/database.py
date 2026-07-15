@@ -15,10 +15,10 @@
 
 """Database connection and session management for the Agentic Commerce middleware."""
 
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from datetime import UTC, datetime, timedelta
 
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import AsyncSession, Session, SQLModel, create_async_engine, create_engine, select
 
 from src.data.product_catalog import PRODUCTS
 from src.merchant.config import get_settings
@@ -26,6 +26,7 @@ from src.merchant.db.models import BrowseHistory, CompetitorPrice, Customer, Pro
 
 # Create engine lazily to allow settings to be loaded
 _engine = None
+_async_engine = None
 
 
 def get_engine():
@@ -39,7 +40,7 @@ def get_engine():
         settings = get_settings()
         _engine = create_engine(
             settings.database_url,
-            echo=settings.log_sql,  # Only log SQL when explicitly enabled
+            echo=settings.log_sql,
             connect_args={"check_same_thread": False},
         )
     return _engine
@@ -384,6 +385,7 @@ def seed_data(session: Session) -> None:
             customer_id="cust_1",
             category="bottoms",
             search_term="casual shorts",
+            product_id="prod_7",
             price_viewed=3500,
             viewed_at=base_time - timedelta(days=4, hours=16),
         ),
@@ -391,6 +393,7 @@ def seed_data(session: Session) -> None:
             customer_id="cust_1",
             category="bottoms",
             search_term="summer pants",
+            product_id="prod_6",
             price_viewed=4000,
             viewed_at=base_time - timedelta(days=4, hours=15),
         ),
@@ -408,6 +411,7 @@ def seed_data(session: Session) -> None:
             customer_id="cust_1",
             category="accessories",
             search_term="summer accessories",
+            product_id="prod_12",
             price_viewed=2000,
             viewed_at=base_time - timedelta(days=2, hours=11),
         ),
@@ -425,6 +429,7 @@ def seed_data(session: Session) -> None:
             customer_id="cust_1",
             category="bottoms",
             search_term="joggers",
+            product_id="prod_8",
             price_viewed=3800,
             viewed_at=base_time - timedelta(hours=3),
         ),
@@ -432,6 +437,7 @@ def seed_data(session: Session) -> None:
             customer_id="cust_1",
             category="footwear",
             search_term="casual sneakers",
+            product_id="prod_15",
             price_viewed=5500,
             viewed_at=base_time - timedelta(hours=1),
         ),
@@ -456,3 +462,57 @@ def reset_engine() -> None:
     if _engine is not None:
         _engine.dispose()
         _engine = None
+
+
+# =============================================================================
+# Async Database Support
+# =============================================================================
+
+
+def _async_database_url(database_url: str) -> str:
+    """Convert a sync database URL to an async one for SQLite."""
+    if database_url.startswith("sqlite:///"):
+        return database_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+    if database_url.startswith("sqlite://"):
+        return database_url.replace("sqlite://", "sqlite+aiosqlite://", 1)
+    return database_url
+
+
+def get_async_engine():
+    """Get or create the async database engine.
+
+    Returns:
+        AsyncEngine: SQLAlchemy async engine instance.
+    """
+    global _async_engine
+    if _async_engine is None:
+        settings = get_settings()
+        _async_engine = create_async_engine(
+            _async_database_url(settings.database_url),
+            echo=settings.log_sql,
+        )
+    return _async_engine
+
+
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get an async database session.
+
+    Yields:
+        AsyncSession: An async SQLModel session for database operations.
+    """
+    async with AsyncSession(get_async_engine()) as session:
+        yield session
+
+
+async def init_async_db() -> None:
+    """Initialize the database tables using async engine."""
+    async with get_async_engine().begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+
+
+async def reset_async_engine() -> None:
+    """Reset the async database engine. Useful for testing."""
+    global _async_engine
+    if _async_engine is not None:
+        await _async_engine.dispose()
+        _async_engine = None
