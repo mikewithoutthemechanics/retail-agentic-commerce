@@ -1,0 +1,97 @@
+# mTLS Overlay (Service Mesh Proof-of-Concept)
+#
+# Strategic Productionization: enable mutual TLS for east-west (service-to-
+# service) traffic. This overlay stands up a Smallstep step-ca certificate
+# authority and a one-shot provisioner that issues per-service certificates
+# into the shared `acp-certs` volume. Application services mount that volume so
+# they can present client certs and trust the mesh CA.
+#
+# Apply ON TOP of the base stack:
+#   docker compose \
+#     -f docker-compose.infra.yml \
+#     -f docker-compose.yml \
+#     -f deploy/production/mtls/docker-compose.mtls.yml \
+#     up -d
+#
+# The issued certs (merchant.crt/key, psp.crt/key, ...) and ca-bundle.crt land
+# in ./deploy/production/mtls/secrets/certs. Point nginx at the provided
+# nginx/mtls.conf (see README) to require client certificates.
+
+services:
+  # Certificate Authority for the mesh.
+  step-ca:
+    image: smallstep/step-ca:latest
+    container_name: acp-step-ca
+    command: step-ca /home/step/config/ca.json --password-file /home/step/secrets/ca.password
+    environment:
+      - CA_NAME=acp-mesh
+      - CA_PORT=9000
+    volumes:
+      - ./deploy/production/mtls/secrets/ca:/home/step/config
+      - ./deploy/production/mtls/secrets/ca/ca.password:/home/step/secrets/ca.password:ro
+    ports:
+      - "9000:9000"   # ACME / provisioning (internal-only in production)
+    networks:
+      - acp-infra-network
+    restart: unless-stopped
+
+  # One-shot provisioner: waits for the CA, then issues service certs.
+  cert-provisioner:
+    image: smallstep/step-cli:latest
+    container_name: acp-cert-provisioner
+    command: >
+      sh -c "
+      until step ca health --ca-url https://step-ca:9000 --root /ca/certs/root_ca.crt 2>/dev/null; do sleep 2; done;
+      sh /scripts/issue-certs.sh
+      "
+    environment:
+      - CA_DIR=/ca
+      - CA_URL=https://step-ca:9000
+      - CERT_OUT_DIR=/certs
+    volumes:
+      - ./deploy/production/mtls/scripts:/scripts:ro
+      - ./deploy/production/mtls/secrets/ca:/ca:ro
+      - acp-certs:/certs
+    depends_on:
+      step-ca:
+        condition: service_started
+    networks:
+      - acp-infra-network
+    restart: "no"
+
+  # Application services mount the issued mesh certificates.
+  merchant:
+    volumes:
+      - acp-certs:/certs
+    environment:
+      - TLS_ENABLED=true
+      - CA_BUNDLE=/certs/ca-bundle.crt
+
+  psp:
+    volumes:
+      - acp-certs:/certs
+    environment:
+      - TLS_ENABLED=true
+      - CA_BUNDLE=/certs/ca-bundle.crt
+
+  apps-sdk:
+    volumes:
+      - acp-certs:/certs
+    environment:
+      - TLS_ENABLED=true
+      - CA_BUNDLE=/certs/ca-bundle.crt
+      - MERCHANT_API_URL=https://merchant.acp.svc.cluster.local:8443
+      - PSP_API_URL=https://psp.acp.svc.cluster.local:8441
+
+  ui:
+    volumes:
+      - acp-certs:/certs
+    environment:
+      - TLS_ENABLED=true
+      - CA_BUNDLE=/certs/ca-bundle.crt
+      - MERCHANT_API_URL=https://merchant.acp.svc.cluster.local:8443
+      - PSP_API_URL=https://psp.acp.svc.cluster.local:8441
+
+volumes:
+  acp-certs:
+    name: acp-certs

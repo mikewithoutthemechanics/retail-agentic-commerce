@@ -159,3 +159,10 @@ coverage/
 
 # Agent evals output
 src/agents/.tmp/
+
+# Phase 9 Strategic Productionization - locally generated mTLS CA + certs
+deploy/production/mtls/secrets/
+deploy/production/mtls/**/secrets/
+
+# Phase 9 - managed DB local data (override only)
+deploy/production/managed-db/.env

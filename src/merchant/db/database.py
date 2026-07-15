@@ -28,6 +28,25 @@ from src.merchant.db.models import BrowseHistory, CompetitorPrice, Customer, Pro
 _engine = None
 
 
+def _normalize_database_url(url: str) -> str:
+    """Normalize a configured database URL for SQLAlchemy/SQLModel.
+
+    Managed Postgres providers commonly emit ``postgres://`` style URLs
+    (e.g. Amazon RDS, Cloud SQL, Azure Flexible Server). SQLAlchemy requires
+    the ``postgresql://`` dialect, so rewrite the scheme here to avoid
+    ``NoSuchModuleError`` when pointing the stack at a managed database.
+
+    Args:
+        url: Raw ``DATABASE_URL`` value.
+
+    Returns:
+        Normalized database URL string.
+    """
+    if url.startswith("postgres://"):
+        return "postgresql" + url[len("postgres"):]
+    return url
+
+
 def get_engine():
     """Get or create the database engine.
 
@@ -37,10 +56,20 @@ def get_engine():
     global _engine
     if _engine is None:
         settings = get_settings()
+        url = _normalize_database_url(settings.database_url)
+        # ``check_same_thread`` is a SQLite-only connect argument. Managed
+        # databases (Postgres/MySQL) reject it, so only apply it for SQLite.
+        connect_args: dict = {}
+        if url.startswith("sqlite"):
+            connect_args = {"check_same_thread": False}
+        # ``pool_pre_ping`` and ``pool_recycle`` keep long-lived connections to
+        # a managed database healthy across provider-side idle timeouts.
         _engine = create_engine(
-            settings.database_url,
+            url,
             echo=settings.log_sql,  # Only log SQL when explicitly enabled
-            connect_args={"check_same_thread": False},
+            connect_args=connect_args,
+            pool_pre_ping=True,
+            pool_recycle=1800,
         )
     return _engine
 

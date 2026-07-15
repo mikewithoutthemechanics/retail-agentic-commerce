@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Common labels applied to every rendered resource.
+commonLabels:
+  app.kubernetes.io/part-of: agentic-commerce
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - merchant.yaml
+  - psp.yaml
+  - apps-sdk.yaml
+  - ui.yaml
+  - ingress.yaml
+
+# __IMAGE_TAG__ is substituted per overlay/CI. Replace before apply:
+#   kustomize build overlays/staging | kubectl apply -f -
+images:
+  - name: ghcr.io/mikewithoutthemechanics/retail-agentic-commerce/merchant
+    newTag: __IMAGE_TAG__
+  - name: ghcr.io/mikewithoutthemechanics/retail-agentic-commerce/psp
+    newTag: __IMAGE_TAG__
+  - name: ghcr.io/mikewithoutthemechanics/retail-agentic-commerce/apps-sdk
+    newTag: __IMAGE_TAG__
+  - name: ghcr.io/mikewithoutthemechanics/retail-agentic-commerce/ui
+    newTag: __IMAGE_TAG__

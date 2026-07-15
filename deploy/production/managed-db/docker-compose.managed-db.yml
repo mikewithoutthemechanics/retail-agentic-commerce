@@ -1,0 +1,60 @@
+# Managed Database Override (Postgres)
+#
+# Strategic Productionization: replace the demo SQLite file with a managed
+# Postgres instance. In real production this override is unnecessary because
+# DATABASE_URL points directly at the cloud-managed endpoint (RDS, Cloud SQL,
+# Azure Flexible Server). This override provides a production-shaped, local
+# stand-in so the wiring can be validated before pointing at the real service.
+#
+# Usage (local production-shaped stack):
+#   docker network create acp-infra-network || true
+#   docker compose \
+#     -f docker-compose.infra.yml \
+#     -f docker-compose.yml \
+#     -f deploy/production/managed-db/docker-compose.managed-db.yml \
+#     up -d
+#
+# Production usage (real managed DB, no local Postgres container):
+#   export DATABASE_URL=postgresql://<user>:<pass>@<managed-host>:5432/agentic_commerce
+#   Then omit this override file and simply run the base compose files.
+
+services:
+  # Production-shaped Postgres stand-in for the managed database.
+  postgres:
+    image: postgres:16-alpine
+    container_name: acp-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-acp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-acp-local-password}
+      POSTGRES_DB: ${POSTGRES_DB:-agentic_commerce}
+    expose:
+      - "5432"
+    volumes:
+      - acp-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-acp} -d ${POSTGRES_DB:-agentic_commerce}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - acp-infra-network
+    restart: unless-stopped
+
+  # Point the merchant + PSP services at the managed database instead of SQLite.
+  merchant:
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://acp:acp-local-password@postgres:5432/agentic_commerce}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  psp:
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://acp:acp-local-password@postgres:5432/agentic_commerce}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  acp-postgres-data:
+    name: acp-postgres-data

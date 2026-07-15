@@ -26,6 +26,7 @@ from sqlmodel import Session, select
 
 from src.data.product_catalog import PRODUCTS
 from src.merchant.db.database import (
+    _normalize_database_url,
     get_engine,
     get_session,
     init_and_seed_db,
@@ -69,6 +70,28 @@ def reset_db_engine() -> Generator[None, None, None]:
     reset_engine()
     yield
     reset_engine()
+
+
+@pytest.mark.usefixtures("reset_db_engine")
+class TestDatabaseUrlNormalization:
+    """Managed-DB URL normalization for SQLAlchemy/SQLModel compatibility."""
+
+    def test_postgres_scheme_normalized_to_postgresql(self) -> None:
+        """Managed providers emit postgres://; SQLAlchemy needs postgresql://."""
+        url = "postgres://acp:pass@db.example.com:5432/agentic_commerce"
+        assert _normalize_database_url(url) == (
+            "postgresql://acp:pass@db.example.com:5432/agentic_commerce"
+        )
+
+    def test_postgresql_scheme_unchanged(self) -> None:
+        """Already-correct postgresql:// URLs are left untouched."""
+        url = "postgresql://acp:pass@db.example.com:5432/agentic_commerce?sslmode=require"
+        assert _normalize_database_url(url) == url
+
+    def test_sqlite_scheme_unchanged(self) -> None:
+        """SQLite URLs are not mangled by the normalizer."""
+        url = "sqlite:////data/agentic_commerce.db"
+        assert _normalize_database_url(url) == url
 
 
 @pytest.mark.usefixtures("reset_db_engine")
