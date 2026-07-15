@@ -47,6 +47,93 @@ class ProductData(TypedDict):
     demand_velocity: str
 
 
+ProductEdge = tuple[str, str, str]
+CategoryEdge = tuple[str, str]
+StyleEdge = tuple[str, str, float]
+
+
+def build_category_edges(products: list[ProductData]) -> list[CategoryEdge]:
+    """Connect products that share the same category."""
+    edges: list[CategoryEdge] = []
+    by_category: dict[str, list[str]] = {}
+    for product in products:
+        by_category.setdefault(product["category"], []).append(product["id"])
+
+    for ids in by_category.values():
+        for i in range(len(ids)):
+            for j in range(i + 1, len(ids)):
+                edges.append((ids[i], ids[j]))
+    return edges
+
+
+_COMPLEMENTARY_PAIRS: set[tuple[str, str]] = {
+    ("tops", "bottoms"),
+    ("tops", "outerwear"),
+    ("tops", "accessories"),
+    ("tops", "footwear"),
+    ("bottoms", "outerwear"),
+    ("bottoms", "accessories"),
+    ("bottoms", "footwear"),
+    ("outerwear", "accessories"),
+    ("outerwear", "footwear"),
+    ("accessories", "footwear"),
+}
+
+
+def build_co_purchase_edges(products: list[ProductData]) -> list[CategoryEdge]:
+    """Connect complementary products across categories."""
+    ids_by_category: dict[str, list[str]] = {}
+    for product in products:
+        ids_by_category.setdefault(product["category"], []).append(product["id"])
+
+    edges: list[CategoryEdge] = []
+    seen: set[tuple[str, str]] = set()
+    for a, b in _COMPLEMENTARY_PAIRS:
+        for left in ids_by_category.get(a, []):
+            for right in ids_by_category.get(b, []):
+                edge = (left, right) if left < right else (right, left)
+                if edge not in seen:
+                    seen.add(edge)
+                    edges.append(edge)
+    return edges
+
+
+def _attribute_similarity(a: list[str], b: list[str]) -> float:
+    overlap = len(set(a) & set(b))
+    if overlap == 0:
+        return 0.0
+    union = len(set(a) | set(b))
+    return overlap / union if union > 0 else 0.0
+
+
+def build_style_affinity_edges(
+    products: list[ProductData], min_similarity: float = 0.25
+) -> list[StyleEdge]:
+    """Connect products with shared style attributes."""
+    by_id = {product["id"]: product for product in products}
+    edges: list[StyleEdge] = []
+    ids = list(by_id.keys())
+    for i in range(len(ids)):
+        for j in range(i + 1, len(ids)):
+            score = _attribute_similarity(
+                by_id[ids[i]]["attributes"], by_id[ids[j]]["attributes"]
+            )
+            if score >= min_similarity:
+                edges.append((ids[i], ids[j], round(score, 4)))
+    return edges
+
+
+def build_product_graph_edges(
+    products: list[ProductData],
+) -> tuple[list[CategoryEdge], list[CategoryEdge], list[StyleEdge]]:
+    """Build all graph edges for the product catalog."""
+    return (
+        build_category_edges(products),
+        build_co_purchase_edges(products),
+        build_style_affinity_edges(products),
+    )
+
+
 PRODUCTS: list[ProductData] = [
     # --- Tops (T-Shirts) ---
     {
